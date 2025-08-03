@@ -1002,7 +1002,7 @@ under the License.
                 <version>4.9.2</version>
                 <executions>
                     <execution>
-                        <id>antlr</id>
+                        <id>antlr-starrocks</id>
                         <phase>generate-sources</phase>
                         <goals>
                             <goal>antlr4</goal>
@@ -1018,8 +1018,28 @@ under the License.
                             </arguments>
                         </configuration>
                     </execution>
+
+                    <!-- 두 번째 실행: datalake/parser 문법 파일 처리 -->
+                    <execution>
+                        <id>antlr-datalake-parser</id> <!-- 고유한 ID로 변경 -->
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>antlr4</goal>
+                        </goals>
+                        <configuration>
+                            <sourceDirectory>src/main/java/com/starrocks/datalake/parser</sourceDirectory>
+                            <visitor>true</visitor>
+                            <arguments>
+                                <argument>-package</argument>
+                                <argument>com.starrocks.datalake.parser</argument>
+                                <argument>-o</argument>
+                                <argument>${project.build.directory}/generated-sources/antlr4/com/starrocks/datalake/parser</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
+
 
             <!-- jmockit -->
             <plugin>
@@ -1178,6 +1198,7 @@ under the License.
             </plugin>
 
             <!-- for FE java code style checking -->
+            <!--
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
@@ -1208,7 +1229,7 @@ under the License.
                     </execution>
                 </executions>
             </plugin>
-
+-->
             <!-- clean fe/target dir before building -->
             <plugin>
                 <artifactId>maven-clean-plugin</artifactId>

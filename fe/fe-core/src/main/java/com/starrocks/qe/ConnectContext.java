@@ -299,6 +299,8 @@ public class ConnectContext {
 
     private MysqlProxy mysqlProxy;
 
+    private String mode = "STARROCKS";
+
     // listeners for this connection
     private List<Listener> listeners = Lists.newArrayList();
 
@@ -1583,6 +1585,20 @@ public class ConnectContext {
         }
     }
 
+    public ByteBuffer ok() {
+        return mysqlProxy.createOkPacket(
+                1,       // sequenceId
+                1L,      // affectedRows
+                0L,      // lastInsertId
+                2,       // serverStatus (autocommit)
+                0        // warningCount
+        );
+    }
+
+    public ByteBuffer error(int errorCode, String sqlCode, String errorLog) {
+        return mysqlProxy.createErrorPacket(1, errorCode, sqlCode, errorLog);
+    }
+
     public ByteBuffer proxy(ByteBuffer byteBuffer) {
         System.out.println("proxyLogin user:"+getQualifiedUser() + " isLogin:" + mysqlProxy.getIsLogin());
         ByteBuffer result = null;
@@ -1595,6 +1611,14 @@ public class ConnectContext {
             throw new RuntimeException(e);
         }
         return result;
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
     }
 
     public int test(String query) {

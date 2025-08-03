@@ -373,11 +373,131 @@ public class MysqlProxy {
         }
     }
 
-    private static String bytesToHex(byte[] bytes) {
+    private String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {
             sb.append(String.format("%02X ", b));
         }
         return sb.toString();
+    }
+
+        /**
+         * MySQL OK 패킷을 생성하여 ByteBuffer 객체로 반환합니다.
+         * @param sequenceId 패킷 순서 ID
+         * @param affectedRows 쿼리에 의해 영향을 받은 행의 수
+         * @param lastInsertId 마지막으로 삽입된 행의 ID
+         * @param serverStatus 서버 상태 플래그
+         * @param warningCount 경고 개수
+         * @return OK 패킷 전체를 담은 ByteBuffer (position은 페이로드 끝에 위치함)
+         */
+        public  ByteBuffer createOkPacket(int sequenceId, long affectedRows, long lastInsertId, int serverStatus, int warningCount) {
+
+            // 페이로드 버퍼를 미리 충분한 크기로 할당합니다.
+            // 최대 페이로드 길이는 OK 헤더(1) + 가변길이 8바이트(2) + status(2) + warnings(2) = 21바이트
+            ByteBuffer payloadBuffer = ByteBuffer.allocate(21).order(ByteOrder.LITTLE_ENDIAN);
+
+            // 1. OK 패킷 헤더: 0x00
+            payloadBuffer.put((byte) 0x00);
+
+            // 2. Affected Rows (가변 길이)
+            writeLengthEncodedInteger(payloadBuffer, affectedRows);
+
+            // 3. Last Insert ID (가변 길이)
+            writeLengthEncodedInteger(payloadBuffer, lastInsertId);
+
+            // 4. Status Flags (2바이트, Little Endian)
+            payloadBuffer.putShort((short) serverStatus);
+
+            // 5. Warnings (2바이트, Little Endian)
+            payloadBuffer.putShort((short) warningCount);
+
+            // 페이로드의 실제 길이를 계산합니다.
+            int payloadLength = payloadBuffer.position();
+
+            // 최종 패킷을 담을 버퍼를 생성합니다.
+            // 헤더 (3바이트 길이 + 1바이트 시퀀스 ID) + 페이로드
+            ByteBuffer finalBuffer = ByteBuffer.allocate(4 + payloadLength).order(ByteOrder.LITTLE_ENDIAN);
+
+            // 1. 패킷 헤더 (3바이트 길이, Little Endian)
+            finalBuffer.put((byte) (payloadLength & 0xFF));
+            finalBuffer.put((byte) ((payloadLength >> 8) & 0xFF));
+            finalBuffer.put((byte) ((payloadLength >> 16) & 0xFF));
+
+            // 2. Sequence ID (1바이트)
+            finalBuffer.put((byte) sequenceId);
+
+            // 3. 페이로드
+            // payloadBuffer의 position을 0으로 되돌려 처음부터 읽을 수 있도록 준비
+            payloadBuffer.flip();
+            finalBuffer.put(payloadBuffer);
+
+            // 최종 버퍼의 position을 처음으로 되돌려 읽을 준비
+            finalBuffer.flip();
+
+            return finalBuffer;
+        }
+
+        /**
+         * 가변 길이 정수를 ByteBuffer에 씁니다.
+         * @param buffer 데이터를 쓸 버퍼
+         * @param value 쓸 값
+         */
+        private void writeLengthEncodedInteger(ByteBuffer buffer, long value) {
+            if (value < 251) {
+                buffer.put((byte) value);
+            } else if (value < 65536) { // 2^16
+                buffer.put((byte) 0xFC);
+                buffer.putShort((short) value);
+            } else if (value < 16777216) { // 2^24
+                buffer.put((byte) 0xFD);
+                buffer.put((byte) (value & 0xFF));
+                buffer.put((byte) ((value >> 8) & 0xFF));
+                buffer.put((byte) ((value >> 16) & 0xFF));
+            } else {
+                buffer.put((byte) 0xFE);
+                buffer.putLong(value);
+            }
+        }
+
+    public ByteBuffer createErrorPacket(int sequenceId, int errorCode, String sqlState, String errorMessage) {
+
+        // 에러 메시지를 바이트로 변환
+        byte[] messageBytes = errorMessage.getBytes(StandardCharsets.UTF_8);
+
+        // 페이로드 길이 계산
+        // 1(ERR 헤더) + 2(Error Code) + 1(SQL State 마커) + 5(SQL State) + 메시지 길이
+        int payloadLength = 1 + 2 + 1 + 5 + messageBytes.length;
+
+        // 최종 패킷을 담을 버퍼를 생성 (헤더 4바이트 + 페이로드)
+        ByteBuffer finalBuffer = ByteBuffer.allocate(4 + payloadLength).order(ByteOrder.LITTLE_ENDIAN);
+
+        // 1. 패킷 헤더 (3바이트 길이)
+        finalBuffer.put((byte) (payloadLength & 0xFF));
+        finalBuffer.put((byte) ((payloadLength >> 8) & 0xFF));
+        finalBuffer.put((byte) ((payloadLength >> 16) & 0xFF));
+
+        // 2. Sequence ID (1바이트)
+        finalBuffer.put((byte) sequenceId);
+
+        // 3. 페이로드
+        // 3-1. ERR 패킷 헤더 (0xFF)
+        finalBuffer.put((byte) 0xFF);
+
+        // 3-2. Error Code (2바이트, Little Endian)
+        finalBuffer.putShort((short) errorCode);
+
+        // 3-3. SQL State 마커 ('#')
+        finalBuffer.put((byte) '#');
+
+        // 3-4. SQL State (5바이트)
+        finalBuffer.put(sqlState.getBytes(StandardCharsets.US_ASCII));
+
+        // 3-5. Error Message
+        finalBuffer.put(messageBytes);
+
+        // 버퍼를 읽기 모드로 전환
+        finalBuffer.flip();
+
+        return finalBuffer;
     }
 }

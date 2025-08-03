@@ -56,6 +56,8 @@ import com.starrocks.common.util.UUIDUtil;
 import com.starrocks.common.util.concurrent.lock.LockType;
 import com.starrocks.common.util.concurrent.lock.Locker;
 import com.starrocks.connector.exception.StarRocksConnectorException;
+import com.starrocks.datalake.ContextBlockInfo;
+import com.starrocks.datalake.parser.ContextSwichParser;
 import com.starrocks.metric.MetricRepo;
 import com.starrocks.metric.ResourceGroupMetricMgr;
 import com.starrocks.mysql.*;
@@ -87,6 +89,7 @@ import com.starrocks.sql.parser.SqlParser;
 import com.starrocks.thrift.TMasterOpRequest;
 import com.starrocks.thrift.TMasterOpResult;
 import com.starrocks.thrift.TQueryOptions;
+import org.antlr.v4.runtime.misc.ParseCancellationException;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -319,17 +322,21 @@ public class ConnectProcessor {
             ending--;
         }
         originStmt = new String(bytes, 1, ending, StandardCharsets.UTF_8);
+        handleQuery(originStmt);
+    }
+
+    protected void handleQuery(String originStmt) {
         ctx.getAuditEventBuilder().reset();
         ctx.getAuditEventBuilder()
-                .setTimestamp(System.currentTimeMillis())
-                .setClientIp(ctx.getMysqlChannel().getRemoteHostPortString())
-                .setUser(ctx.getQualifiedUser())
-                .setAuthorizedUser(
-                        ctx.getCurrentUserIdentity() == null ? "null" : ctx.getCurrentUserIdentity().toString())
-                .setDb(ctx.getDatabase())
-                .setCatalog(ctx.getCurrentCatalog())
-                .setWarehouse(ctx.getCurrentWarehouseName());
-        Tracers.register(ctx);
+            .setTimestamp(System.currentTimeMillis())
+            .setClientIp(ctx.getMysqlChannel().getRemoteHostPortString())
+            .setUser(ctx.getQualifiedUser())
+            .setAuthorizedUser(
+            ctx.getCurrentUserIdentity() == null ? "null" : ctx.getCurrentUserIdentity().toString())
+            .setDb(ctx.getDatabase())
+            .setCatalog(ctx.getCurrentCatalog())
+            .setWarehouse(ctx.getCurrentWarehouseName());
+            Tracers.register(ctx);
         // set isQuery before `forwardToLeader` to make it right for audit log.
         ctx.getState().setIsQuery(true);
 
@@ -431,17 +438,17 @@ public class ConnectProcessor {
                     finalizeCommand();
                 }
             }
-        } catch (AnalysisException e) {
-            LOG.warn("Failed to parse SQL: " + originStmt + ", because.", e);
-            ctx.getState().setError(e.getMessage());
-            ctx.getState().setErrType(QueryState.ErrType.ANALYSIS_ERR);
-        } catch (Throwable e) {
-            // Catch all throwable.
-            // If reach here, maybe StarRocks bug.
-            LOG.warn("Process one query failed. SQL: " + originStmt + ", because unknown reason: ", e);
-            ctx.getState().setError(e.getMessage());
-            ctx.getState().setErrType(QueryState.ErrType.INTERNAL_ERR);
-        } finally {
+            } catch (AnalysisException e) {
+                LOG.warn("Failed to parse SQL: " + originStmt + ", because.", e);
+                ctx.getState().setError(e.getMessage());
+                ctx.getState().setErrType(QueryState.ErrType.ANALYSIS_ERR);
+            } catch (Throwable e) {
+                // Catch all throwable.
+                // If reach here, maybe StarRocks bug.
+                LOG.warn("Process one query failed. SQL: " + originStmt + ", because unknown reason: ", e);
+                ctx.getState().setError(e.getMessage());
+                ctx.getState().setErrType(QueryState.ErrType.INTERNAL_ERR);
+            } finally {
             Tracers.close();
             if (!onlySetStmt) {
                 // custom_query_id session is temporary, should be cleared after query finished
@@ -453,7 +460,7 @@ public class ConnectProcessor {
         // replace '\n' to '\\n' to make string in one line
         // TODO(cmy): when user send multi-statement, the executor is the last statement's executor.
         // We may need to find some way to resolve this.
-        if (executor != null) {
+            if (executor != null) {
             auditAfterExec(originStmt, executor.getParsedStmt(), executor.getQueryStatisticsForAuditLog());
             executor.addFinishedQueryDetail();
         } else {
@@ -973,17 +980,126 @@ public class ConnectProcessor {
             return;
         }
         // dispatch
-        //dispatch();
+        //ctx.getMysqlChannel().realNetSend(ctx.proxy(packetBuf));
+        datalakeDispatch();
         // finalize
-        channel.realNetSend(ctx.proxy(packetBuf));
         if (ctx.getCommand() == MysqlCommand.COM_QUERY) {
             ctx.setLastQueryId(ctx.queryId);
             ctx.setQueryId(null);
         }
 
-        ctx.test("select 1");
         ctx.setCommand(MysqlCommand.COM_SLEEP);
         ctx.setEndTime();
+    }
+
+    private void datalakeDispatch() throws IOException {
+        int code = packetBuf.get();
+        MysqlCommand command = MysqlCommand.fromCode(code);
+        if (command == null) {
+            ErrorReport.report(ErrorCode.ERR_UNKNOWN_COM_ERROR);
+            ctx.getState().setError("Unknown command(" + command + ")");
+            LOG.debug("Unknown MySQL protocol command");
+            return;
+        }
+
+        System.out.println("datalakeDispatch command:" + command);
+
+        switch (command) {
+            case COM_QUERY:
+            case COM_STMT_PREPARE:
+                query();
+                break;
+            case COM_INIT_DB:
+            case COM_QUIT:
+            case COM_STMT_RESET:
+            case COM_STMT_CLOSE:
+            case COM_FIELD_LIST:
+            case COM_CHANGE_USER:
+            case COM_RESET_CONNECTION:
+            case COM_PING:
+            case COM_STMT_EXECUTE:
+                noQuery();
+            default:
+                ctx.getState().setError("Unsupported command(" + command + ")");
+                LOG.debug("Unsupported command: {}", command);
+                break;
+        }
+    }
+
+    ContextSwichParser contextParser = new ContextSwichParser();
+    private int query() {
+        System.out.println("first");
+        String originStmt = null;
+        byte[] bytes = packetBuf.array();
+        int ending = packetBuf.limit() - 1;
+        packetBuf.rewind();
+        while (ending >= 1 && bytes[ending] == '\0') {
+            ending--;
+        }
+        originStmt = new String(bytes, 1, ending, StandardCharsets.UTF_8);
+        System.out.println("first originStmt:"+originStmt);
+        try {
+            ContextBlockInfo block = contextParser.parse(originStmt);
+            System.out.println("block" + block);
+
+            if (block == null) {
+                System.out.println("JUST Changer Context:" + contextParser.getCurrentContext());
+                ctx.getMysqlChannel().realNetSend(ctx.ok());
+            } else {
+                switch (contextParser.getCurrentContext()) {
+                    case "SYSTEM":
+                        System.out.println("System Query:" + block.getQuery());
+                        ctx.getMysqlChannel().realNetSend(ctx.ok());
+                        break;
+                    case "STARROCKS":
+                        System.out.println("STARROCKS QUERY");
+                        ctx.getMysqlChannel().realNetSend(ctx.proxy(packetBuf));
+                        break;
+                    case "PYSPARK":
+                        System.out.println("PySpark Query:" + block.getQuery());
+                        ctx.getMysqlChannel().realNetSend(ctx.error(1045, "28000", "%pyspark command not support"));
+                        break;
+                    default:
+                        System.out.println("  -> 알 수 없는 블록 타입입니다.");
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return 0;
+    }
+
+    private int noQuery() throws IOException {
+        switch (contextParser.getCurrentContext()) {
+            case "SYSTEM":
+                System.out.println("System Query");
+                ctx.getMysqlChannel().realNetSend(ctx.error(1045, "2800", "%system command not support"));
+                break;
+            case "STARROCKS":
+                System.out.println("STARROCKS QUERY");
+                ctx.getMysqlChannel().realNetSend(ctx.proxy(packetBuf));
+                break;
+            case "PYSPARK":
+                System.out.println("PySpark Query");
+                ctx.getMysqlChannel().realNetSend(ctx.error(1045, "2800", "%pyspark command not support"));
+                break;
+            default:
+                System.out.println("  -> 알 수 없는 블록 타입입니다.");
+        }
+        return 0;
+    }
+
+    private int starrocks() throws IOException {
+
+        //쿼리 체그후 문제없으면 proxy
+        boolean check = true;
+        if (check) {
+            ctx.getMysqlChannel().realNetSend(ctx.proxy(packetBuf));
+        } else {
+
+        }
+
+        return 0;
     }
 
     protected void loopForTest() {
