@@ -57,6 +57,10 @@ import com.starrocks.common.util.concurrent.lock.LockType;
 import com.starrocks.common.util.concurrent.lock.Locker;
 import com.starrocks.connector.exception.StarRocksConnectorException;
 import com.starrocks.datalake.ContextBlockInfo;
+import com.starrocks.datalake.ast.CreateScheduleStatement;
+import com.starrocks.datalake.ast.CreateStarrocksStatement;
+import com.starrocks.datalake.ast.ProgramStatement;
+import com.starrocks.datalake.ast.SystemNode;
 import com.starrocks.datalake.parser.ContextSwichParser;
 import com.starrocks.datalake.parser.DatalakeSystemParser;
 import com.starrocks.metric.MetricRepo;
@@ -1065,8 +1069,18 @@ public class ConnectProcessor {
 
     DatalakeSystemParser datalakeSystemParser = new DatalakeSystemParser();
     private void system(MysqlCommand command, String originStmt) throws IOException {
-        String parseStmt = datalakeSystemParser.parse(originStmt+";");
-        System.out.println("System parseStmt:"+parseStmt);
+        SystemNode parseStmt = datalakeSystemParser.parse(originStmt+";");
+        List<SystemNode> nodes = parseStmt.getList();
+        for (SystemNode node: nodes) {
+            if (node instanceof CreateStarrocksStatement) {
+                CreateStarrocksStatement css = (CreateStarrocksStatement) node;
+                System.out.println("name:" + css.getName()+" size:" + css.getSize() + " fe[" + css.getFeSpec()+"] cn[" + css.getCnSpec()+"]");
+            } else if (node instanceof CreateScheduleStatement) {
+
+            }
+
+        }
+        System.out.println("System parseStmt:"+((ProgramStatement)parseStmt).getList().get(0));
         ctx.getMysqlChannel().realNetSend(ctx.ok());
     }
 

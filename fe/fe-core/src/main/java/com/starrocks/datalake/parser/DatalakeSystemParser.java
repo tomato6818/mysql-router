@@ -1,9 +1,7 @@
 package com.starrocks.datalake.parser;
 
-import org.antlr.v4.runtime.BailErrorStrategy;
-import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
+import com.starrocks.datalake.ast.SystemNode;
+import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.misc.ParseCancellationException;
 
 import java.io.ByteArrayInputStream;
@@ -12,7 +10,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 public class DatalakeSystemParser {
-    public String parse(String query) throws IOException {
+    public SystemNode parse(String query) throws IOException {
         InputStream stream = new ByteArrayInputStream(query.getBytes(StandardCharsets.UTF_8));
         CharStream charStream = CharStreams.fromStream(stream, StandardCharsets.UTF_8);
 
@@ -21,10 +19,10 @@ public class DatalakeSystemParser {
         SystemParser parser = new SystemParser(tokens);
 
         parser.removeErrorListeners();
-        parser.setErrorHandler(new BailErrorStrategy());
+        parser.setErrorHandler(new DefaultErrorStrategy());
 
         System.out.println("--- Parsing started ---\n");
-        String result = null;
+        SystemNode result = null;
         try {
             SystemParser.ProgContext tree = parser.prog();
             DatalakeSystemVisitor visitor = new DatalakeSystemVisitor(tokens);
