@@ -58,6 +58,7 @@ import com.starrocks.common.util.concurrent.lock.Locker;
 import com.starrocks.connector.exception.StarRocksConnectorException;
 import com.starrocks.datalake.ContextBlockInfo;
 import com.starrocks.datalake.parser.ContextSwichParser;
+import com.starrocks.datalake.parser.DatalakeSystemParser;
 import com.starrocks.metric.MetricRepo;
 import com.starrocks.metric.ResourceGroupMetricMgr;
 import com.starrocks.mysql.*;
@@ -1004,7 +1005,6 @@ public class ConnectProcessor {
             return;
         }
 
-        System.out.println("first");
         String originStmt = null;
         byte[] bytes = packetBuf.array();
         int ending = packetBuf.limit() - 1;
@@ -1013,19 +1013,17 @@ public class ConnectProcessor {
             ending--;
         }
         originStmt = new String(bytes, 1, ending, StandardCharsets.UTF_8);
-        System.out.println("first originStmt:"+originStmt);
         try {
             ContextBlockInfo block = contextParser.parse(originStmt);
-            System.out.println("block" + block);
 
             if (block == null) {
-                System.out.println("JUST Changer Context:" + contextParser.getCurrentContext());
+                System.out.println("JUST Change Context:" + contextParser.getCurrentContext());
                 ctx.getMysqlChannel().realNetSend(ctx.ok());
             } else {
                 switch (contextParser.getCurrentContext()) {
                     case "SYSTEM":
                         System.out.println("System Query:" + block.getQuery());
-                        system(command);
+                        system(command, originStmt);
                         break;
                     case "STARROCKS":
                         System.out.println("STARROCKS QUERY");
@@ -1065,7 +1063,10 @@ public class ConnectProcessor {
 
     }
 
-    private void system(MysqlCommand command) throws IOException {
+    DatalakeSystemParser datalakeSystemParser = new DatalakeSystemParser();
+    private void system(MysqlCommand command, String originStmt) throws IOException {
+        String parseStmt = datalakeSystemParser.parse(originStmt+";");
+        System.out.println("System parseStmt:"+parseStmt);
         ctx.getMysqlChannel().realNetSend(ctx.ok());
     }
 
