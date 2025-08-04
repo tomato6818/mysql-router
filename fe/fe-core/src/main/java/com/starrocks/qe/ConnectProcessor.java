@@ -61,6 +61,7 @@ import com.starrocks.datalake.ast.CreateScheduleStatement;
 import com.starrocks.datalake.ast.CreateStarrocksStatement;
 import com.starrocks.datalake.ast.ProgramStatement;
 import com.starrocks.datalake.ast.SystemNode;
+import com.starrocks.datalake.execute.*;
 import com.starrocks.datalake.parser.ContextSwichParser;
 import com.starrocks.datalake.parser.DatalakeSystemParser;
 import com.starrocks.metric.MetricRepo;
@@ -94,7 +95,6 @@ import com.starrocks.sql.parser.SqlParser;
 import com.starrocks.thrift.TMasterOpRequest;
 import com.starrocks.thrift.TMasterOpResult;
 import com.starrocks.thrift.TQueryOptions;
-import org.antlr.v4.runtime.misc.ParseCancellationException;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -125,9 +125,19 @@ public class ConnectProcessor {
 
     protected StmtExecutor executor = null;
 
+    DatalakeStarrocksExecutor starrocks;
+    DatalakeSystemExecutor system;
+    DatalakePySparkExecutor pyspark;
+    DatalakeAIExecutor ai;
+
+
     Socket feSocket;
     public ConnectProcessor(ConnectContext context) {
         this.ctx = context;
+        this.starrocks = new DatalakeStarrocksExecutor(context);
+        this.system = new DatalakeSystemExecutor(context);
+        this.pyspark = new DatalakePySparkExecutor(context);
+        this.ai = new DatalakeAIExecutor(context);
     }
 
     // COM_INIT_DB: change current database of this session.
@@ -999,6 +1009,7 @@ public class ConnectProcessor {
 
     ContextSwichParser contextParser = new ContextSwichParser();
 
+
     private void datalakeDispatch() throws IOException {
         int code = packetBuf.get();
         MysqlCommand command = MysqlCommand.fromCode(code);
@@ -1024,27 +1035,28 @@ public class ConnectProcessor {
                 System.out.println("JUST Change Context:" + contextParser.getCurrentContext());
                 ctx.getMysqlChannel().realNetSend(ctx.ok());
             } else {
-                switch (contextParser.getCurrentContext()) {
-                    case "SYSTEM":
-                        System.out.println("System Query:" + block.getQuery());
-                        system(command, originStmt);
-                        break;
-                    case "STARROCKS":
-                        System.out.println("STARROCKS QUERY");
-                        starrocks(command, originStmt);
-                        break;
-                    case "PYSPARK":
-                        System.out.println("PySpark Query:" + block.getQuery());
-                        pyspark(command);
-                        break;
-                    default:
-                        System.out.println("  -> 알 수 없는 블록 타입입니다.");
-                }
+                DatalakeExecutor datalakeExecutor = createDatalakeExecutor(contextParser.getCurrentContext());
+                datalakeExecutor.execute(command, originStmt, packetBuf);
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
         System.out.println("datalakeDispatch command:" + command);
+    }
+
+    private DatalakeExecutor createDatalakeExecutor(String currentContext) {
+        switch (currentContext) {
+            case "SYSTEM":
+                return system;
+            case "STARROCKS":
+                return starrocks;
+            case "PYSPARK":
+                return pyspark;
+            case "AI":
+                return ai;
+            default:
+                return starrocks;
+        }
     }
 
     private void starrocks(MysqlCommand command, String originStmt) throws IOException {
