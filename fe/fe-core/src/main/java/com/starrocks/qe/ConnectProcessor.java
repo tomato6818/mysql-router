@@ -992,6 +992,8 @@ public class ConnectProcessor {
         ctx.setEndTime();
     }
 
+    ContextSwichParser contextParser = new ContextSwichParser();
+
     private void datalakeDispatch() throws IOException {
         int code = packetBuf.get();
         MysqlCommand command = MysqlCommand.fromCode(code);
@@ -1002,32 +1004,6 @@ public class ConnectProcessor {
             return;
         }
 
-        System.out.println("datalakeDispatch command:" + command);
-
-        switch (command) {
-            case COM_QUERY:
-            case COM_STMT_PREPARE:
-                query();
-                break;
-            case COM_INIT_DB:
-            case COM_QUIT:
-            case COM_STMT_RESET:
-            case COM_STMT_CLOSE:
-            case COM_FIELD_LIST:
-            case COM_CHANGE_USER:
-            case COM_RESET_CONNECTION:
-            case COM_PING:
-            case COM_STMT_EXECUTE:
-                noQuery();
-            default:
-                ctx.getState().setError("Unsupported command(" + command + ")");
-                LOG.debug("Unsupported command: {}", command);
-                break;
-        }
-    }
-
-    ContextSwichParser contextParser = new ContextSwichParser();
-    private int query() {
         System.out.println("first");
         String originStmt = null;
         byte[] bytes = packetBuf.array();
@@ -1049,15 +1025,15 @@ public class ConnectProcessor {
                 switch (contextParser.getCurrentContext()) {
                     case "SYSTEM":
                         System.out.println("System Query:" + block.getQuery());
-                        ctx.getMysqlChannel().realNetSend(ctx.ok());
+                        system(command);
                         break;
                     case "STARROCKS":
                         System.out.println("STARROCKS QUERY");
-                        ctx.getMysqlChannel().realNetSend(ctx.proxy(packetBuf));
+                        starrocks(command, originStmt);
                         break;
                     case "PYSPARK":
                         System.out.println("PySpark Query:" + block.getQuery());
-                        ctx.getMysqlChannel().realNetSend(ctx.error(1045, "28000", "%pyspark command not support"));
+                        pyspark(command);
                         break;
                     default:
                         System.out.println("  -> 알 수 없는 블록 타입입니다.");
@@ -1066,40 +1042,36 @@ public class ConnectProcessor {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return 0;
+        System.out.println("datalakeDispatch command:" + command);
     }
 
-    private int noQuery() throws IOException {
-        switch (contextParser.getCurrentContext()) {
-            case "SYSTEM":
-                System.out.println("System Query");
-                ctx.getMysqlChannel().realNetSend(ctx.error(1045, "2800", "%system command not support"));
-                break;
-            case "STARROCKS":
-                System.out.println("STARROCKS QUERY");
-                ctx.getMysqlChannel().realNetSend(ctx.proxy(packetBuf));
-                break;
-            case "PYSPARK":
-                System.out.println("PySpark Query");
-                ctx.getMysqlChannel().realNetSend(ctx.error(1045, "2800", "%pyspark command not support"));
-                break;
-            default:
-                System.out.println("  -> 알 수 없는 블록 타입입니다.");
+    private void starrocks(MysqlCommand command, String originStmt) throws IOException {
+        StatementBase parsedStmt = null;
+        List<StatementBase> stmts = null;
+        Class parsedStmtClass = null;
+
+        if (command == MysqlCommand.COM_QUERY) {
+            stmts = com.starrocks.sql.parser.SqlParser.parse(originStmt, ctx.getSessionVariable());
+            for (int i = 0; i < stmts.size(); ++i) {
+                parsedStmt = stmts.get(i);
+            }
+            if (parsedStmt != null) {
+                parsedStmtClass = parsedStmt.getClass();
+            }
         }
-        return 0;
+
+        System.out.println("command:"+command+" parsedStmtClass:" + parsedStmtClass);
+        ctx.getMysqlChannel().realNetSend(ctx.proxy(packetBuf, command, parsedStmtClass));
+
     }
 
-    private int starrocks() throws IOException {
+    private void system(MysqlCommand command) throws IOException {
+        ctx.getMysqlChannel().realNetSend(ctx.ok());
+    }
 
-        //쿼리 체그후 문제없으면 proxy
-        boolean check = true;
-        if (check) {
-            ctx.getMysqlChannel().realNetSend(ctx.proxy(packetBuf));
-        } else {
 
-        }
-
-        return 0;
+    private void pyspark(MysqlCommand command) throws IOException {
+        ctx.getMysqlChannel().realNetSend(ctx.error(1045, "28000", "%pyspark command not support"));
     }
 
     protected void loopForTest() {

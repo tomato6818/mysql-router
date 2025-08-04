@@ -1599,14 +1599,14 @@ public class ConnectContext {
         return mysqlProxy.createErrorPacket(1, errorCode, sqlCode, errorLog);
     }
 
-    public ByteBuffer proxy(ByteBuffer byteBuffer) {
+    public ByteBuffer proxy(ByteBuffer byteBuffer, MysqlCommand command, Class stmtClass) {
         System.out.println("proxyLogin user:"+getQualifiedUser() + " isLogin:" + mysqlProxy.getIsLogin());
         ByteBuffer result = null;
         try {
             if (!mysqlProxy.getIsLogin()) {
                 mysqlProxy.login();
             }
-            result = mysqlProxy.send(byteBuffer);
+            result = mysqlProxy.send(byteBuffer, command, stmtClass);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

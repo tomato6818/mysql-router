@@ -1,6 +1,7 @@
 package com.starrocks.mysql;
 
 import com.starrocks.qe.ConnectContext;
+import com.starrocks.sql.ast.*;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -30,7 +31,7 @@ public class MysqlProxy {
         this.mysqlSerializer = MysqlSerializer.newInstance();
     }
 
-    public ByteBuffer send(ByteBuffer byteBuffer) {
+    public ByteBuffer send(ByteBuffer byteBuffer, MysqlCommand command, Class stmtClass) {
         List<byte[]> responsePackets = new ArrayList<>();
 
         int length = byteBuffer.limit();
@@ -70,6 +71,35 @@ public class MysqlProxy {
             if (firstByte == 0xFF) {
                 handleErrorPacket(columnCountPacket);
                 return mergePacketsToByteBuffer(responsePackets); // 또는 적절한 에러 처리
+            }
+
+            if (stmtClass == InsertStmt.class
+                    || stmtClass == UpdateStmt.class
+                    || stmtClass == DeleteStmt.class
+                    || stmtClass == CreateDbStmt.class
+                    || stmtClass == CreateTableStmt.class) {
+                return createOkPacket(
+                        1,       // sequenceId
+                        1L,      // affectedRows
+                        0L,      // lastInsertId
+                        2,       // serverStatus (autocommit)
+                        0        // warningCount
+                );
+            }
+
+            if (command == MysqlCommand.COM_INIT_DB) {
+                return createOkPacket(
+                        1,       // sequenceId
+                        1L,      // affectedRows
+                        0L,      // lastInsertId
+                        2,       // serverStatus (autocommit)
+                        0        // warningCount
+                );
+            }
+
+            if (command == MysqlCommand.COM_FIELD_LIST) {
+                readPacket(in,responsePackets);
+                return mergePacketsToByteBuffer(responsePackets);
             }
 
             int columnCount = firstByte;
@@ -121,7 +151,7 @@ public class MysqlProxy {
         buffer.flip(); // ready for reading
         buffer.rewind();
 
-        send(buffer);
+        send(buffer, MysqlCommand.COM_QUERY, null);
         System.out.println("MysqlProxy Fininsh query:" + query);
         return 0;
     }
@@ -500,4 +530,5 @@ public class MysqlProxy {
 
         return finalBuffer;
     }
+
 }
