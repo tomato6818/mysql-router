@@ -68,6 +68,19 @@ class DatalakeSystemVisitor extends SystemBaseVisitor<SystemNode> {
         return result;
     }
 
+    @Override
+    public SystemNode visitSelect_statement(SystemParser.Select_statementContext ctx) {
+        SelectStatement result = new SelectStatement();
+
+        if (ctx.ID() != null) {
+            result.setTable(ctx.ID().getText());
+
+        }
+
+        return result;
+    }
+
+
     // 최상위 노드에서 모든 결과를 모아서 하나의 문자열로 반환합니다.
     @Override
     public SystemNode visitProg(SystemParser.ProgContext ctx) {

@@ -1,4 +1,3 @@
-// Statement.g4
 grammar System;
 
 // ----------------------------------------------------------------------
@@ -11,6 +10,7 @@ statement
     | create_job_statement
     | insert_job_statement
     | create_schedule_statement
+    | select_statement // select 문 추가
     ;
 
 create_starrocks_statement
@@ -57,6 +57,10 @@ param_value
     : ID | STRING
     ;
 
+select_statement
+    : SELECT STAR FROM ID SEMI // select * from ID; 구문 추가
+    ;
+
 // ----------------------------------------------------------------------
 // 렉서 규칙: 토큰(단어)을 정의합니다.
 // ----------------------------------------------------------------------
@@ -74,6 +78,7 @@ FROM: 'from';
 TO: 'to';
 QUERY: 'query';
 SCHEDULE: 'SCHEDULE';
+SELECT: 'select'; // select 렉서 규칙 추가
 
 ID: [a-zA-Z_][a-zA-Z0-9_]*;
 INT: [0-9]+;

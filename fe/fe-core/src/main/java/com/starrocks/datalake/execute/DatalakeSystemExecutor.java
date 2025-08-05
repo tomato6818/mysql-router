@@ -1,9 +1,6 @@
 package com.starrocks.datalake.execute;
 
-import com.starrocks.datalake.ast.CreateScheduleStatement;
-import com.starrocks.datalake.ast.CreateStarrocksStatement;
-import com.starrocks.datalake.ast.ProgramStatement;
-import com.starrocks.datalake.ast.SystemNode;
+import com.starrocks.datalake.ast.*;
 import com.starrocks.datalake.parser.DatalakeSystemParser;
 import com.starrocks.mysql.MysqlCommand;
 import com.starrocks.qe.ConnectContext;
@@ -17,16 +14,14 @@ import io.kubernetes.client.util.KubeConfig;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class DatalakeSystemExecutor implements DatalakeExecutor {
     ConnectContext ctx;
     DatalakeSystemParser datalakeSystemParser;
     CustomObjectsApi api;
     String namespace = "test";
-
+    List<String> starrockscluster;
     public DatalakeSystemExecutor(ConnectContext ctx) {
         this.ctx = ctx;
         this.datalakeSystemParser = new DatalakeSystemParser();
@@ -42,6 +37,8 @@ public class DatalakeSystemExecutor implements DatalakeExecutor {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
+        this.starrockscluster = new ArrayList<String>();
     }
     @Override
     public void execute(MysqlCommand command, String query, ByteBuffer packetBuf) throws IOException {
@@ -50,13 +47,31 @@ public class DatalakeSystemExecutor implements DatalakeExecutor {
         for (SystemNode node: nodes) {
             if (node instanceof CreateStarrocksStatement) {
                 createStarrocks(node);
-            } else if (node instanceof CreateScheduleStatement) {
+                ctx.getMysqlChannel().realNetSend(ctx.ok());
+            } else if (node instanceof SelectStatement) {
+                System.out.println("SelectStatement");
+                selectStarrocks(node);
+                List<ByteBuffer> packets = ctx.resultSend("gre", starrockscluster.get(0));
 
+                for (ByteBuffer packet : packets) {
+                    System.out.println(Arrays.toString(packet.array()));
+                    packet.rewind();
+                    ctx.getMysqlChannel().realNetSend(packet);
+
+
+                    System.out.println();
+                }
             }
 
         }
         System.out.println("System parseStmt:"+((ProgramStatement)parseStmt).getList().get(0));
-        ctx.getMysqlChannel().realNetSend(ctx.ok());
+    }
+
+    private int selectStarrocks(SystemNode node) {
+        SelectStatement css = (SelectStatement) node;
+
+        System.out.println("selectStarrocks:" + css.getTable());
+        return 0;
     }
 
     private int createStarrocks(SystemNode node) {
@@ -153,7 +168,7 @@ public class DatalakeSystemExecutor implements DatalakeExecutor {
             );
             System.out.println("StarRocksCluster 'kube-starrocks' 생성 요청 완료.");
             System.out.println("결과: " + result);
-
+            starrockscluster.add(css.getName());
         } catch (ApiException e) {
             System.err.println("API 예외 발생: " + e.getMessage());
             System.err.println("HTTP 상태 코드: " + e.getCode());

@@ -531,4 +531,144 @@ public class MysqlProxy {
         return finalBuffer;
     }
 
+    public List<ByteBuffer> createResultSet(int sequenceId, String columnName, List<String> values) {
+        List<ByteBuffer> packets = new ArrayList<>();
+
+        // 1. Column count
+        ByteBuffer headerPayload = ByteBuffer.allocate(1);
+        headerPayload.put((byte) 0x01); // 1 column
+        headerPayload.flip();
+        packets.add(createPacket(sequenceId++, headerPayload));
+
+        // 2. Column definition
+        ByteBuffer colDef = createColumnDefinitionPayload(columnName);
+        packets.add(createPacket(sequenceId++, colDef));
+
+        // 3. EOF (after column definitions)
+        packets.add(createPacket(sequenceId++, createEOF()));
+
+        // 4. Row data packets (multiple rows)
+        for (String val : values) {
+            ByteBuffer row = createRowDataPayload(val);
+            packets.add(createPacket(sequenceId++, row));
+        }
+
+        // 5. EOF (after rows)
+        packets.add(createPacket(sequenceId++, createEOF()));
+
+        return packets;
+    }
+
+    private ByteBuffer createEOF() {
+        ByteBuffer eof = ByteBuffer.allocate(5);
+        eof.put((byte) 0xFE);
+        eof.putShort((short) 0);     // warning count
+        eof.putShort((short) 0x0002); // status flags (autocommit enabled)
+        eof.flip();
+        return eof;
+    }
+
+    private ByteBuffer createRowDataPayload2(String value) {
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        ByteBuffer buf = ByteBuffer.allocate(1 + bytes.length);
+
+        buf.put((byte) bytes.length); // Length-encoded string prefix
+        buf.put(bytes);
+        buf.flip();
+
+        return buf;
+    }
+
+    // --- 헬퍼 함수들 ---
+
+
+    private ByteBuffer createColumnDefinitionPayload(String columnName) {
+        ByteBuffer payload = ByteBuffer.allocate(256).order(ByteOrder.LITTLE_ENDIAN);
+
+        // Length-encoded strings for identifiers
+        writeLengthEncodedString(payload, "def");      // catalog
+        writeLengthEncodedString(payload, "");         // schema
+        writeLengthEncodedString(payload, "");         // table
+        writeLengthEncodedString(payload, "");         // org_table
+        writeLengthEncodedString(payload, columnName); // name
+        writeLengthEncodedString(payload, "");         // org_name
+
+        // Fixed length fields length (always 0x0C)
+        payload.put((byte) 0x0C);
+
+        // Fixed-length fields
+        payload.putShort((short) 33);        // character set (33 = utf8_general_ci)
+        payload.putInt(255);                 // column length (max display width)
+        payload.put((byte) 0xfd);            // type = VAR_STRING (0xfd)
+        payload.putShort((short) 0);         // flags
+        payload.put((byte) 0x00);            // decimals (0 for strings)
+        payload.putShort((short) 0x0000);    // filler (always 0x0000)
+
+        payload.flip();
+        return payload;
+    }
+
+    private ByteBuffer createPacket(int sequenceId, ByteBuffer payload) {
+        // payload.remaining()으로 정확한 페이로드 길이를 계산합니다.
+        int payloadLength = payload.remaining();
+        System.out.println("Calculated payload length: " + payloadLength);
+
+        ByteBuffer finalBuffer = ByteBuffer.allocate(4 + payloadLength).order(ByteOrder.LITTLE_ENDIAN);
+
+        // 3바이트 페이로드 길이를 정확히 씁니다.
+        finalBuffer.put((byte) (payloadLength & 0xFF));
+        finalBuffer.put((byte) ((payloadLength >> 8) & 0xFF));
+        finalBuffer.put((byte) ((payloadLength >> 16) & 0xFF));
+
+        // 1바이트 시퀀스 ID
+        finalBuffer.put((byte) sequenceId);
+
+        // 페이로드를 finalBuffer에 복사합니다.
+        finalBuffer.put(payload);
+
+        // 최종 버퍼를 읽기 모드로 전환합니다.
+        finalBuffer.flip();
+
+        return finalBuffer;
+    }
+
+    /**
+     * 데이터 행 페이로드를 생성합니다.
+     */
+    private ByteBuffer createRowDataPayload(String value) {
+        ByteBuffer payload = ByteBuffer.allocate(value.length() + 10).order(ByteOrder.LITTLE_ENDIAN);
+        writeLengthEncodedString(payload, value);
+        payload.flip();
+        return payload;
+    }
+
+    /**
+     * 가변 길이 정수를 ByteBuffer에 씁니다.
+     */
+    private void writeLengthEncodedInteger2(ByteBuffer buffer, long value) {
+        if (value < 251) {
+            buffer.put((byte) value);
+        } else if (value < 65536) {
+            buffer.put((byte) 0xFC);
+            buffer.putShort((short) value);
+        } else if (value < 16777216) {
+            buffer.put((byte) 0xFD);
+            buffer.put((byte) (value & 0xFF));
+            buffer.put((byte) ((value >> 8) & 0xFF));
+            buffer.put((byte) ((value >> 16) & 0xFF));
+        } else {
+            buffer.put((byte) 0xFE);
+            buffer.putLong(value);
+        }
+    }
+
+    /**
+     * 가변 길이 문자열을 ByteBuffer에 씁니다.
+     */
+    private void writeLengthEncodedString(ByteBuffer buffer, String value) {
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        writeLengthEncodedInteger2(buffer, bytes.length);
+        buffer.put(bytes);
+    }
+
 }
