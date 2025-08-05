@@ -1599,9 +1599,9 @@ public class ConnectContext {
         return mysqlProxy.createErrorPacket(1, errorCode, sqlCode, errorLog);
     }
 
-    public List<ByteBuffer> resultSend(String columnName, String data) throws IOException {
+    public List<ByteBuffer> resultSend(String columnName, List data) throws IOException {
         System.out.println("resultSend");
-        return mysqlProxy.createResultSet(1,"col1",List.of("hello","world"));
+        return mysqlProxy.createResultSet(1,columnName,data);
     }
 
     public ByteBuffer proxy(ByteBuffer byteBuffer, MysqlCommand command, Class stmtClass) {

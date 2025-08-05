@@ -47,34 +47,31 @@ public class DatalakeSystemExecutor implements DatalakeExecutor {
         for (SystemNode node: nodes) {
             if (node instanceof CreateStarrocksStatement) {
                 createStarrocks(node);
-                ctx.getMysqlChannel().realNetSend(ctx.ok());
             } else if (node instanceof SelectStatement) {
-                System.out.println("SelectStatement");
                 selectStarrocks(node);
-                List<ByteBuffer> packets = ctx.resultSend("gre", starrockscluster.get(0));
-
-                for (ByteBuffer packet : packets) {
-                    System.out.println(Arrays.toString(packet.array()));
-                    packet.rewind();
-                    ctx.getMysqlChannel().realNetSend(packet);
-
-
-                    System.out.println();
-                }
             }
 
         }
         System.out.println("System parseStmt:"+((ProgramStatement)parseStmt).getList().get(0));
     }
 
-    private int selectStarrocks(SystemNode node) {
+    private int selectStarrocks(SystemNode node) throws IOException {
         SelectStatement css = (SelectStatement) node;
 
         System.out.println("selectStarrocks:" + css.getTable());
+
+        List<ByteBuffer> packets = ctx.resultSend(css.getTable(), starrockscluster);
+
+        for (ByteBuffer packet : packets) {
+            System.out.println(Arrays.toString(packet.array()));
+            packet.rewind();
+            ctx.getMysqlChannel().realNetSend(packet);
+            System.out.println();
+        }
         return 0;
     }
 
-    private int createStarrocks(SystemNode node) {
+    private int createStarrocks(SystemNode node) throws IOException {
         CreateStarrocksStatement css = (CreateStarrocksStatement) node;
         System.out.println("name:" + css.getName()+" size:" + css.getSize() + " fe[" + css.getFeSpec()+"] cn[" + css.getCnSpec()+"]");
 
@@ -169,10 +166,12 @@ public class DatalakeSystemExecutor implements DatalakeExecutor {
             System.out.println("StarRocksCluster 'kube-starrocks' 생성 요청 완료.");
             System.out.println("결과: " + result);
             starrockscluster.add(css.getName());
+            ctx.getMysqlChannel().realNetSend(ctx.ok());
         } catch (ApiException e) {
             System.err.println("API 예외 발생: " + e.getMessage());
             System.err.println("HTTP 상태 코드: " + e.getCode());
             System.err.println("응답 바디: " + e.getResponseBody()); // 이 부분을 추가하세요
+            ctx.getMysqlChannel().realNetSend(ctx.error(1045, "28000", e.getResponseBody()));
         }
 
         return 0;
