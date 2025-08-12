@@ -20,8 +20,8 @@ public class MysqlProxy {
     int sequenceId;
     int sendSequenceId;
     Socket socket;
-    String host = "10.233.64.26";
-    int port = 9030;
+    String host = "127.0.0.1";
+    int port = 9031;
 
     String username = "root";
     String password = "1234";
@@ -98,7 +98,14 @@ public class MysqlProxy {
             }
 
             if (command == MysqlCommand.COM_FIELD_LIST) {
-                readPacket(in,responsePackets);
+                while (true) {
+                    byte[] row = readPacket(in, responsePackets);
+                    if ((row[0] & 0xFF) == 0xFE && row.length < 9) {
+                        System.out.println("EOF reached.");
+                        break;
+                    }
+                }
+
                 return mergePacketsToByteBuffer(responsePackets);
             }
 
