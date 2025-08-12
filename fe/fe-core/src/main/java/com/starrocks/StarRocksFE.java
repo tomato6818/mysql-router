@@ -137,19 +137,24 @@ public class StarRocksFE {
             // set dns cache ttl
             java.security.Security.setProperty("networkaddress.cache.ttl", "60");
 
-            RestoreClusterSnapshotMgr.init(starRocksDir + "/conf/cluster_snapshot.yaml", cmdLineOpts.isStartFromSnapshot());
+            //test주석2
+            //RestoreClusterSnapshotMgr.init(starRocksDir + "/conf/cluster_snapshot.yaml", cmdLineOpts.isStartFromSnapshot());
 
             // check meta dir
             MetaHelper.checkMetaDir();
 
             LOG.info("StarRocks FE starting, version: {}-{}", Version.STARROCKS_VERSION, Version.STARROCKS_COMMIT_HASH);
 
-            FrontendOptions.init(cmdLineOpts.getHostType());
+            //test주석2
+            //FrontendOptions.init(cmdLineOpts.getHostType());
+            //test주석2
             ExecuteEnv.setup();
 
             // init globalStateMgr
-            GlobalStateMgr.getCurrentState().initialize(cmdLineOpts.getHelpers());
-
+            //test주석2
+            //GlobalStateMgr.getCurrentState().initialize(cmdLineOpts.getHelpers());
+            //test주석
+            /*
             if (RunMode.isSharedDataMode()) {
                 Journal journal = GlobalStateMgr.getCurrentState().getJournal();
                 if (journal instanceof BDBJEJournal) {
@@ -163,18 +168,22 @@ public class StarRocksFE {
                 StateChangeExecutor.getInstance().registerStateChangeExecution(
                         StarMgrServer.getCurrentState().getStateChangeExecution());
             }
+            */
 
-            StateChangeExecutor.getInstance().registerStateChangeExecution(
-                    GlobalStateMgr.getCurrentState().getStateChangeExecution());
+            //test주석
+            //StateChangeExecutor.getInstance().registerStateChangeExecution(
+            //        GlobalStateMgr.getCurrentState().getStateChangeExecution());
             // start state change executor
-            StateChangeExecutor.getInstance().start();
+            //test주석
+            //StateChangeExecutor.getInstance().start();
 
             // wait globalStateMgr to be ready
-            GlobalStateMgr.getCurrentState().waitForReady();
-
-            FrontendOptions.saveStartType();
-
-            CoordinatorMonitor.getInstance().start();
+            //test주석
+            //GlobalStateMgr.getCurrentState().waitForReady();
+            //test주석
+            //FrontendOptions.saveStartType();
+            //test주석
+            //CoordinatorMonitor.getInstance().start();
 
             // init and start:
             // 1. QeService for MySQL Server
@@ -182,28 +191,38 @@ public class StarRocksFE {
             // 3. HttpServer for HTTP Server
             // 4. ArrowFlightSqlService for Arrow Flight SQL Server
             QeService qeService = new QeService(Config.query_port, ExecuteEnv.getInstance().getScheduler());
-            FrontendThriftServer frontendThriftServer = new FrontendThriftServer(Config.rpc_port);
-            HttpServer httpServer = new HttpServer(Config.http_port);
-            ArrowFlightSqlService arrowFlightSqlService = new ArrowFlightSqlService(Config.arrow_flight_port);
-
-            httpServer.setup();
-
-            frontendThriftServer.start();
-            httpServer.start();
+            //FrontendThriftServer frontendThriftServer = new FrontendThriftServer(Config.rpc_port);
+            //test주석
+            //HttpServer httpServer = new HttpServer(Config.http_port);
+            //test주석
+            //ArrowFlightSqlService arrowFlightSqlService = new ArrowFlightSqlService(Config.arrow_flight_port);
+            //test주석
+            //httpServer.setup();
+            //test주석
+            //frontendThriftServer.start();
+            //test주석
+            //httpServer.start();
             qeService.start();
-            arrowFlightSqlService.start();
+            //test주석
+            //arrowFlightSqlService.start();
 
+            //test주석2
+            /*
             if (Config.enable_groovy_debug_server) {
                 GroovyUDSServer.getInstance().start();
             }
+            */
+            //test주석2
+            //ThreadPoolManager.registerAllThreadPoolMetric();
 
-            ThreadPoolManager.registerAllThreadPoolMetric();
+            //test주석2
+            //addShutdownHook();
 
-            addShutdownHook();
+            //test주석2
+            //RestoreClusterSnapshotMgr.finishRestoring();
 
-            RestoreClusterSnapshotMgr.finishRestoring();
-
-            handleGracefulExit();
+            //test주석2
+            //handleGracefulExit();
 
             LOG.info("FE started successfully");
 

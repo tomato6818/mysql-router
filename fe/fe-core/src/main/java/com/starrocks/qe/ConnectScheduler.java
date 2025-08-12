@@ -301,8 +301,8 @@ public class ConnectScheduler {
      * @return a unique connection ID
      */
     public int getNextConnectionId() {
-        Frontend frontend = GlobalStateMgr.getCurrentState().getNodeMgr().getMySelf();
-        return (frontend.getFid() & 0xFF) << 24 | (connectionIdGenerator.incrementAndGet() & 0xFFFFFF);
+        //Frontend frontend = GlobalStateMgr.getCurrentState().getNodeMgr().getMySelf();
+        return (0 & 0xFF) << 24 | (connectionIdGenerator.incrementAndGet() & 0xFFFFFF);
     }
 
     public static class ConnectionIdGenerator {
