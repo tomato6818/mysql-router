@@ -1034,14 +1034,17 @@ public class ConnectProcessor {
             if (block == null) {
                 System.out.println("JUST Change Context:" + contextParser.getCurrentContext());
                 ctx.getMysqlChannel().realNetSend(ctx.ok());
-            } else {
-                DatalakeExecutor datalakeExecutor = createDatalakeExecutor(contextParser.getCurrentContext());
-                datalakeExecutor.execute(command, originStmt, packetBuf);
+                System.out.println("datalakeDispatch command:" + command);
+                return;
             }
+
+            DatalakeExecutor datalakeExecutor = createDatalakeExecutor(contextParser.getCurrentContext());
+            datalakeExecutor.execute(command, originStmt, packetBuf);
+            System.out.println("datalakeDispatch command:" + command);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        System.out.println("datalakeDispatch command:" + command);
+
     }
 
     private DatalakeExecutor createDatalakeExecutor(String currentContext) {
