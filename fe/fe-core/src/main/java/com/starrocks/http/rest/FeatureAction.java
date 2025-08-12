@@ -37,7 +37,7 @@ public class FeatureAction extends RestBaseAction {
         response.setContentType("application/json");
 
         RestResult result = new RestResult();
-        result.addResultEntry("version", Version.STARROCKS_VERSION);
+        result.addResultEntry("version", Version.PROTOHUB_VERSION);
         result.addResultEntry("features", ProductFeature.getFeatures());
         sendResult(request, response, result);
     }

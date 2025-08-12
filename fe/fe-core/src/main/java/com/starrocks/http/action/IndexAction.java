@@ -94,10 +94,10 @@ public class IndexAction extends WebBaseAction {
     private void appendVersionInfo(StringBuilder buffer) {
         buffer.append("<h2>Version</h2>");
         buffer.append("<pre>version info<br/>");
-        buffer.append("Version: " + Version.STARROCKS_VERSION + "<br/>");
-        buffer.append("Git: " + Version.STARROCKS_COMMIT_HASH + "<br/>");
-        buffer.append("Build Info: " + Version.STARROCKS_BUILD_USER + "@" + Version.STARROCKS_BUILD_HOST + "<br/>");
-        buffer.append("Build Time: " + Version.STARROCKS_BUILD_TIME + "<br/>");
+        buffer.append("Version: " + Version.PROTOHUB_VERSION + "<br/>");
+        buffer.append("Git: " + Version.PROTOHUB_COMMIT_HASH + "<br/>");
+        buffer.append("Build Info: " + Version.PROTOHUB_BUILD_USER + "@" + Version.PROTOHUB_BUILD_HOST + "<br/>");
+        buffer.append("Build Time: " + Version.PROTOHUB_BUILD_TIME + "<br/>");
         buffer.append("</pre>");
     }
 

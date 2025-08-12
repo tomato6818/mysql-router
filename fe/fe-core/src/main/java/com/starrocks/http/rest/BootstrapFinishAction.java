@@ -95,7 +95,7 @@ public class BootstrapFinishAction extends RestBaseAction {
                     result.setQueryPort(Config.query_port);
                     result.setRpcPort(Config.rpc_port);
                     result.setFeStartTime(feStartTime);
-                    result.setFeVersion(Version.STARROCKS_VERSION + "-" + Version.STARROCKS_COMMIT_HASH);
+                    result.setFeVersion(Version.PROTOHUB_VERSION + "-" + Version.PROTOHUB_COMMIT_HASH);
                     result.setHeapUsedPercent(JvmStats.getJvmHeapUsedPercent());
                 }
             }

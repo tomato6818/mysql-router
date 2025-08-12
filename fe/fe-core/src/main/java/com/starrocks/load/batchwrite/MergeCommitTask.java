@@ -340,7 +340,7 @@ public class MergeCommitTask implements Runnable {
         summaryProfile.addInfoString(ProfileManager.QUERY_TYPE, "Load");
         summaryProfile.addInfoString(ProfileManager.LOAD_TYPE, "MERGE_COMMIT");
         summaryProfile.addInfoString("StarRocks Version",
-                String.format("%s-%s", Version.STARROCKS_VERSION, Version.STARROCKS_COMMIT_HASH));
+                String.format("%s-%s", Version.PROTOHUB_VERSION, Version.PROTOHUB_COMMIT_HASH));
         summaryProfile.addInfoString("Default Db", tableId.getDbName());
         summaryProfile.addInfoString("Sql Statement",
                 String.format("merge commit, table: %s, label: %s, %s",

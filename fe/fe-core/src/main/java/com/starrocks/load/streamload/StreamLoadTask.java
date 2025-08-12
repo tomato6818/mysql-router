@@ -1113,7 +1113,7 @@ public class StreamLoadTask extends AbstractTxnStateChangeCallback
         summaryProfile.addInfoString(ProfileManager.LOAD_TYPE, getStringByType());
         summaryProfile.addInfoString(ProfileManager.QUERY_STATE, isAborted ? "Aborted" : "Finished");
         summaryProfile.addInfoString("StarRocks Version",
-                String.format("%s-%s", Version.STARROCKS_VERSION, Version.STARROCKS_COMMIT_HASH));
+                String.format("%s-%s", Version.PROTOHUB_VERSION, Version.PROTOHUB_COMMIT_HASH));
         summaryProfile.addInfoString(ProfileManager.SQL_STATEMENT, getStmt());
         summaryProfile.addInfoString(ProfileManager.DEFAULT_DB, dbName);
 

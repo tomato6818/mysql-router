@@ -358,7 +358,7 @@ public class HeartbeatMgr extends FrontendDaemon {
                     return new FrontendHbResponse(fe.getNodeName(), Config.query_port, Config.rpc_port,
                             GlobalStateMgr.getCurrentState().getMaxJournalId(), System.currentTimeMillis(),
                             GlobalStateMgr.getCurrentState().getFeStartTime(),
-                            Version.STARROCKS_VERSION + "-" + Version.STARROCKS_COMMIT_HASH,
+                            Version.PROTOHUB_VERSION + "-" + Version.PROTOHUB_COMMIT_HASH,
                             JvmStats.getJvmHeapUsedPercent());
                 } else {
                     return new FrontendHbResponse(fe.getNodeName(), "not ready");

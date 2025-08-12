@@ -191,7 +191,7 @@ public class LoadLoadingTask extends LoadTask {
         summaryProfile.addInfoString(ProfileManager.QUERY_TYPE, "Load");
         summaryProfile.addInfoString(ProfileManager.QUERY_STATE, isFinished ? "Finished" : "Running");
         summaryProfile.addInfoString("StarRocks Version",
-                String.format("%s-%s", Version.STARROCKS_VERSION, Version.STARROCKS_COMMIT_HASH));
+                String.format("%s-%s", Version.PROTOHUB_VERSION, Version.PROTOHUB_COMMIT_HASH));
         summaryProfile.addInfoString(ProfileManager.USER, context.getQualifiedUser());
         summaryProfile.addInfoString(ProfileManager.DEFAULT_DB, context.getDatabase());
         if (AuditEncryptionChecker.needEncrypt(loadStmt)) {

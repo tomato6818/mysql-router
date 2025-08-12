@@ -91,7 +91,7 @@ public final class GlobalVariable {
     public static final String SPM_CAPTURE_INCLUDE_TABLE_PATTERN = "plan_capture_include_pattern";
 
     @VariableMgr.VarAttr(name = VERSION_COMMENT, flag = VariableMgr.READ_ONLY)
-    public static String versionComment = Version.STARROCKS_VERSION + "-" + Version.STARROCKS_COMMIT_HASH;
+    public static String versionComment = Version.PROTOHUB_VERSION + "-" + Version.PROTOHUB_COMMIT_HASH;
 
     @VariableMgr.VarAttr(name = VERSION, flag = VariableMgr.READ_ONLY)
     public static String version = Config.mysql_server_version;

@@ -39,14 +39,11 @@ import com.google.common.base.Strings;
 import com.starrocks.common.CommandLineOptions;
 import com.starrocks.common.Config;
 import com.starrocks.common.Log4jConfig;
-import com.starrocks.common.ThreadPoolManager;
 import com.starrocks.common.Version;
 import com.starrocks.common.util.NetUtils;
 import com.starrocks.common.util.Util;
 import com.starrocks.failpoint.FailPoint;
 import com.starrocks.ha.FrontendNodeType;
-import com.starrocks.ha.StateChangeExecutor;
-import com.starrocks.http.HttpServer;
 import com.starrocks.http.rest.ActionStatus;
 import com.starrocks.http.rest.BootstrapFinishAction;
 import com.starrocks.journal.Journal;
@@ -55,21 +52,13 @@ import com.starrocks.journal.bdbje.BDBEnvironment;
 import com.starrocks.journal.bdbje.BDBJEJournal;
 import com.starrocks.journal.bdbje.BDBTool;
 import com.starrocks.journal.bdbje.BDBToolOptions;
-import com.starrocks.lake.snapshot.RestoreClusterSnapshotMgr;
 import com.starrocks.leader.MetaHelper;
 import com.starrocks.qe.ConnectScheduler;
-import com.starrocks.qe.CoordinatorMonitor;
 import com.starrocks.qe.ProxyContextManager;
 import com.starrocks.qe.QeService;
 import com.starrocks.server.GlobalStateMgr;
 import com.starrocks.server.GracefulExitFlag;
-import com.starrocks.server.RunMode;
 import com.starrocks.service.ExecuteEnv;
-import com.starrocks.service.FrontendOptions;
-import com.starrocks.service.FrontendThriftServer;
-import com.starrocks.service.GroovyUDSServer;
-import com.starrocks.service.arrow.flight.sql.ArrowFlightSqlService;
-import com.starrocks.staros.StarMgrServer;
 import com.starrocks.system.Frontend;
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
@@ -89,23 +78,23 @@ import java.nio.channels.FileLock;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-public class StarRocksFE {
-    private static final Logger LOG = LogManager.getLogger(StarRocksFE.class);
+public class ProtoHub {
+    private static final Logger LOG = LogManager.getLogger(ProtoHub.class);
 
-    public static final String STARROCKS_HOME_DIR = System.getenv("STARROCKS_HOME");
+    public static final String PROTOHUB_HOME_DIR = System.getenv("PROTOHUB_HOME");
     public static final String PID_DIR = System.getenv("PID_DIR");
 
     public static volatile boolean stopped = false;
 
     public static void main(String[] args) {
-        start(STARROCKS_HOME_DIR, PID_DIR, args);
+        start(PROTOHUB_HOME_DIR, PID_DIR, args);
     }
 
 
-    // entrance for starrocks frontend
+    // entrance for PROTOHUB frontend
     public static void start(String starRocksDir, String pidDir, String[] args) {
         if (Strings.isNullOrEmpty(starRocksDir)) {
-            System.err.println("env STARROCKS_HOME is not set.");
+            System.err.println("env PROTOHUB_HOME is not set.");
             return;
         }
 
@@ -133,105 +122,25 @@ public class StarRocksFE {
             // We have already output the caffine's error message to Log4j2.
             // we turn off the java.util.logging.Logger of caffine to reduce the output log of the console
             java.util.logging.Logger.getLogger("com.github.benmanes.caffeine").setLevel(java.util.logging.Level.OFF);
-
             // set dns cache ttl
             java.security.Security.setProperty("networkaddress.cache.ttl", "60");
-
-            //test주석2
-            //RestoreClusterSnapshotMgr.init(starRocksDir + "/conf/cluster_snapshot.yaml", cmdLineOpts.isStartFromSnapshot());
-
             // check meta dir
             MetaHelper.checkMetaDir();
 
-            LOG.info("StarRocks FE starting, version: {}-{}", Version.STARROCKS_VERSION, Version.STARROCKS_COMMIT_HASH);
-
-            //test주석2
-            //FrontendOptions.init(cmdLineOpts.getHostType());
-            //test주석2
+            LOG.info("MySQL Router starting, version: {}-{}", Version.PROTOHUB_VERSION, Version.PROTOHUB_COMMIT_HASH);
             ExecuteEnv.setup();
-
-            // init globalStateMgr
-            //test주석2
-            //GlobalStateMgr.getCurrentState().initialize(cmdLineOpts.getHelpers());
-            //test주석
-            /*
-            if (RunMode.isSharedDataMode()) {
-                Journal journal = GlobalStateMgr.getCurrentState().getJournal();
-                if (journal instanceof BDBJEJournal) {
-                    BDBEnvironment bdbEnvironment = ((BDBJEJournal) journal).getBdbEnvironment();
-                    StarMgrServer.getCurrentState().initialize(bdbEnvironment, GlobalStateMgr.getImageDirPath());
-                } else {
-                    LOG.error("journal type should be BDBJE for star mgr!");
-                    System.exit(-1);
-                }
-
-                StateChangeExecutor.getInstance().registerStateChangeExecution(
-                        StarMgrServer.getCurrentState().getStateChangeExecution());
-            }
-            */
-
-            //test주석
-            //StateChangeExecutor.getInstance().registerStateChangeExecution(
-            //        GlobalStateMgr.getCurrentState().getStateChangeExecution());
-            // start state change executor
-            //test주석
-            //StateChangeExecutor.getInstance().start();
-
-            // wait globalStateMgr to be ready
-            //test주석
-            //GlobalStateMgr.getCurrentState().waitForReady();
-            //test주석
-            //FrontendOptions.saveStartType();
-            //test주석
-            //CoordinatorMonitor.getInstance().start();
-
-            // init and start:
-            // 1. QeService for MySQL Server
-            // 2. FrontendThriftServer for Thrift Server
-            // 3. HttpServer for HTTP Server
-            // 4. ArrowFlightSqlService for Arrow Flight SQL Server
             QeService qeService = new QeService(Config.query_port, ExecuteEnv.getInstance().getScheduler());
-            //FrontendThriftServer frontendThriftServer = new FrontendThriftServer(Config.rpc_port);
-            //test주석
-            //HttpServer httpServer = new HttpServer(Config.http_port);
-            //test주석
-            //ArrowFlightSqlService arrowFlightSqlService = new ArrowFlightSqlService(Config.arrow_flight_port);
-            //test주석
-            //httpServer.setup();
-            //test주석
-            //frontendThriftServer.start();
-            //test주석
-            //httpServer.start();
             qeService.start();
-            //test주석
-            //arrowFlightSqlService.start();
 
-            //test주석2
-            /*
-            if (Config.enable_groovy_debug_server) {
-                GroovyUDSServer.getInstance().start();
-            }
-            */
-            //test주석2
-            //ThreadPoolManager.registerAllThreadPoolMetric();
 
-            //test주석2
-            //addShutdownHook();
-
-            //test주석2
-            //RestoreClusterSnapshotMgr.finishRestoring();
-
-            //test주석2
-            //handleGracefulExit();
-
-            LOG.info("FE started successfully");
+            LOG.info("MySQL Router started successfully");
 
             while (!stopped) {
                 Thread.sleep(2000);
             }
 
         } catch (Throwable e) {
-            LOG.error("StarRocksFE start failed", e);
+            LOG.error("MySQL Router start failed", e);
             System.exit(-1);
         }
 
@@ -520,14 +429,14 @@ public class StarRocksFE {
 
     private static void runCommandLineOptions(CommandLineOptions cmdLineOpts) {
         if (cmdLineOpts.isVersion()) {
-            System.out.println("Build version: " + Version.STARROCKS_VERSION);
-            System.out.println("Commit hash: " + Version.STARROCKS_COMMIT_HASH);
-            System.out.println("Build type: " + Version.STARROCKS_BUILD_TYPE);
-            System.out.println("Build time: " + Version.STARROCKS_BUILD_TIME);
-            System.out.println("Build distributor id: " + Version.STARROCKS_BUILD_DISTRO_ID);
-            System.out.println("Build arch: " + Version.STARROCKS_BUILD_ARCH);
-            System.out.println("Build user: " + Version.STARROCKS_BUILD_USER + "@" + Version.STARROCKS_BUILD_HOST);
-            System.out.println("Java compile version: " + Version.STARROCKS_JAVA_COMPILE_VERSION);
+            System.out.println("Build version: " + Version.PROTOHUB_VERSION);
+            System.out.println("Commit hash: " + Version.PROTOHUB_COMMIT_HASH);
+            System.out.println("Build type: " + Version.PROTOHUB_BUILD_TYPE);
+            System.out.println("Build time: " + Version.PROTOHUB_BUILD_TIME);
+            System.out.println("Build distributor id: " + Version.PROTOHUB_BUILD_DISTRO_ID);
+            System.out.println("Build arch: " + Version.PROTOHUB_BUILD_ARCH);
+            System.out.println("Build user: " + Version.PROTOHUB_BUILD_USER + "@" + Version.PROTOHUB_BUILD_HOST);
+            System.out.println("Java compile version: " + Version.PROTOHUB_JAVA_COMPILE_VERSION);
             System.exit(0);
         }
         if (cmdLineOpts.getBdbToolOpts() != null) {

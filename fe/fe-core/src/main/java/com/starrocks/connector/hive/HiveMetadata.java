@@ -463,7 +463,7 @@ public class HiveMetadata implements ConnectorMetadata {
                         .collect(Collectors.toList()))
                 .setValues(partitionDesc.getValues())
                 .setParameters(ImmutableMap.<String, String>builder()
-                        .put("starrocks_version", Version.STARROCKS_VERSION + "-" + Version.STARROCKS_COMMIT_HASH)
+                        .put("starrocks_version", Version.PROTOHUB_VERSION + "-" + Version.PROTOHUB_COMMIT_HASH)
                         .put(STARROCKS_QUERY_ID, ConnectContext.get().getQueryId().toString())
                         .buildOrThrow())
                 .setStorageFormat(table.getStorageFormat())

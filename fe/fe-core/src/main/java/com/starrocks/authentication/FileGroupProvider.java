@@ -15,7 +15,7 @@
 package com.starrocks.authentication;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.starrocks.StarRocksFE;
+import com.starrocks.ProtoHub;
 import com.starrocks.common.DdlException;
 import com.starrocks.sql.analyzer.SemanticException;
 import com.starrocks.sql.ast.UserIdentity;
@@ -97,7 +97,7 @@ public class FileGroupProvider extends GroupProvider {
         if (groupFileUrl.startsWith("http://") || groupFileUrl.startsWith("https://")) {
             return new URL(groupFileUrl).openStream();
         } else {
-            String filePath = StarRocksFE.STARROCKS_HOME_DIR + "/conf/" + groupFileUrl;
+            String filePath = ProtoHub.PROTOHUB_HOME_DIR + "/conf/" + groupFileUrl;
             return new FileInputStream(filePath);
         }
     }

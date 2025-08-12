@@ -79,8 +79,8 @@ public class QueryDumpSerializer implements JsonSerializer<QueryDumpInfo> {
         dumpJson.add("exception", exceptions);
         // version
         if (!FeConstants.runningUnitTest) {
-            dumpJson.addProperty("version", Version.STARROCKS_VERSION);
-            dumpJson.addProperty("commit_version", Version.STARROCKS_COMMIT_HASH);
+            dumpJson.addProperty("version", Version.PROTOHUB_VERSION);
+            dumpJson.addProperty("commit_version", Version.PROTOHUB_COMMIT_HASH);
         }
         return dumpJson;
     }
