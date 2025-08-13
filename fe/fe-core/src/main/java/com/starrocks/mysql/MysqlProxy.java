@@ -566,6 +566,96 @@ public class MysqlProxy {
         return packets;
     }
 
+    public List<ByteBuffer> createResultSet2(
+            int sequenceId,
+            String[] columnNames,       // 컬럼명 배열
+            List<String[]> rows         // 각 row는 columnNames 순서에 맞춘 값 배열
+    ) {
+        List<ByteBuffer> packets = new ArrayList<>();
+
+        // 1. Column count
+        ByteBuffer headerPayload = ByteBuffer.allocate(1);
+        headerPayload.put((byte) columnNames.length);
+        headerPayload.flip();
+        packets.add(createPacket(sequenceId++, headerPayload));
+
+        // 2. Column definitions
+        for (String colName : columnNames) {
+            packets.add(createPacket(sequenceId++, createColumnDefinitionPayload(colName)));
+        }
+
+        // 3. EOF (after column definitions)
+        packets.add(createPacket(sequenceId++, createEOF()));
+
+        // 4. Row data packets
+        for (String[] row : rows) {
+            packets.add(createPacket(sequenceId++, createRowDataPayload(row)));
+        }
+
+        // 5. EOF (after rows)
+        packets.add(createPacket(sequenceId++, createEOF()));
+
+        return packets;
+    }
+
+    private ByteBuffer createRowDataPayload(String[] fields) {
+        // 먼저 전체 길이 계산
+        int totalLength = 0;
+        byte[][] encodedFields = new byte[fields.length][];
+
+        for (int i = 0; i < fields.length; i++) {
+            if (fields[i] == null) {
+                // NULL 값은 0xfb (251) 바이트 하나
+                encodedFields[i] = new byte[]{(byte) 0xfb};
+                totalLength += 1;
+            } else {
+                byte[] valueBytes = fields[i].getBytes(StandardCharsets.UTF_8);
+                byte[] lenEnc = encodeLength(valueBytes.length); // Length-Encoded Integer
+                byte[] fieldPacket = new byte[lenEnc.length + valueBytes.length];
+                System.arraycopy(lenEnc, 0, fieldPacket, 0, lenEnc.length);
+                System.arraycopy(valueBytes, 0, fieldPacket, lenEnc.length, valueBytes.length);
+                encodedFields[i] = fieldPacket;
+                totalLength += fieldPacket.length;
+            }
+        }
+
+        ByteBuffer payload = ByteBuffer.allocate(totalLength);
+        for (byte[] field : encodedFields) {
+            payload.put(field);
+        }
+        payload.flip();
+        return payload;
+    }
+
+    // MySQL Length-Encoded Integer 인코딩 (0-250: 1바이트, 그 이상은 가변 길이)
+    private byte[] encodeLength(int length) {
+        if (length < 251) {
+            return new byte[]{(byte) length};
+        } else if (length < 65536) {
+            return new byte[]{
+                    (byte) 0xfc,
+                    (byte) (length & 0xff),
+                    (byte) ((length >>> 8) & 0xff)
+            };
+        } else if (length < 16777216) {
+            return new byte[]{
+                    (byte) 0xfd,
+                    (byte) (length & 0xff),
+                    (byte) ((length >>> 8) & 0xff),
+                    (byte) ((length >>> 16) & 0xff)
+            };
+        } else {
+            return new byte[]{
+                    (byte) 0xfe,
+                    (byte) (length & 0xff),
+                    (byte) ((length >>> 8) & 0xff),
+                    (byte) ((length >>> 16) & 0xff),
+                    (byte) ((length >>> 24) & 0xff),
+                    0, 0, 0, 0 // 상위 4바이트 0으로 채움
+            };
+        }
+    }
+
     private ByteBuffer createEOF() {
         ByteBuffer eof = ByteBuffer.allocate(5);
         eof.put((byte) 0xFE);

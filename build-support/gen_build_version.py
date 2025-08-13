@@ -132,15 +132,15 @@ package com.starrocks.common;
 
 
 public class Version {{
-    public static final String STARROCKS_VERSION = "{VERSION}";
-    public static final String STARROCKS_COMMIT_HASH = "{COMMIT_HASH}";
-    public static final String STARROCKS_BUILD_TYPE = "{BUILD_TYPE}";
-    public static final String STARROCKS_BUILD_TIME = "{BUILD_TIME}";
-    public static final String STARROCKS_BUILD_USER = "{BUILD_USER}";
-    public static final String STARROCKS_BUILD_HOST = "{BUILD_HOST}";
-    public static final String STARROCKS_BUILD_DISTRO_ID = "{BUILD_DISTRO_ID}";
-    public static final String STARROCKS_BUILD_ARCH = "{BUILD_ARCH}";
-    public static final String STARROCKS_JAVA_COMPILE_VERSION = "{JAVA_VERSION}";
+    public static final String PROTOHUB_VERSION = "{VERSION}";
+    public static final String PROTOHUB_COMMIT_HASH = "{COMMIT_HASH}";
+    public static final String PROTOHUB_BUILD_TYPE = "{BUILD_TYPE}";
+    public static final String PROTOHUB_BUILD_TIME = "{BUILD_TIME}";
+    public static final String PROTOHUB_BUILD_USER = "{BUILD_USER}";
+    public static final String PROTOHUB_BUILD_HOST = "{BUILD_HOST}";
+    public static final String PROTOHUB_BUILD_DISTRO_ID = "{BUILD_DISTRO_ID}";
+    public static final String PROTOHUB_BUILD_ARCH = "{BUILD_ARCH}";
+    public static final String PROTOHUB_JAVA_COMPILE_VERSION = "{JAVA_VERSION}";
 }}
 '''
     fingerprint = get_fingerprint([version, commit_hash, build_type, user, host, java_version, build_distro_id, build_arch])
@@ -176,13 +176,13 @@ def generate_cpp_file(cpp_path, version, commit_hash, build_type, build_time, us
 
 namespace starrocks {{
 
-const char* STARROCKS_VERSION = "{VERSION}";
-const char* STARROCKS_COMMIT_HASH = "{COMMIT_HASH}";
-const char* STARROCKS_BUILD_TIME = "{BUILD_TIME}";
-const char* STARROCKS_BUILD_USER = "{BUILD_USER}";
-const char* STARROCKS_BUILD_HOST = "{BUILD_HOST}";
-const char* STARROCKS_BUILD_DISTRO_ID = "{BUILD_DISTRO_ID}";
-const char* STARROCKS_BUILD_ARCH = "{BUILD_ARCH}";
+const char* PROTOHUB_VERSION = "{VERSION}";
+const char* PROTOHUB_COMMIT_HASH = "{COMMIT_HASH}";
+const char* PROTOHUB_BUILD_TIME = "{BUILD_TIME}";
+const char* PROTOHUB_BUILD_USER = "{BUILD_USER}";
+const char* PROTOHUB_BUILD_HOST = "{BUILD_HOST}";
+const char* PROTOHUB_BUILD_DISTRO_ID = "{BUILD_DISTRO_ID}";
+const char* PROTOHUB_BUILD_ARCH = "{BUILD_ARCH}";
 }}
 
 '''

@@ -7,6 +7,7 @@ prog: statement+ EOF;
 
 statement
     : create_starrocks_statement
+    | drop_starrocks_statement
     | create_job_statement
     | insert_job_statement
     | create_schedule_statement
@@ -27,6 +28,10 @@ spec_list
     ;
 spec_item
     : ID COLON INT
+    ;
+
+drop_starrocks_statement
+    : DROP STARROCKS ID SEMI          // DROP STARROCKS <이름>;
     ;
 
 create_job_statement
@@ -65,6 +70,7 @@ select_statement
 // 렉서 규칙: 토큰(단어)을 정의합니다.
 // ----------------------------------------------------------------------
 CREATE: 'CREATE';
+DROP: 'DROP';
 STARROCKS: 'STARROCKS';
 SIZE: 'size';
 FE: 'FE';

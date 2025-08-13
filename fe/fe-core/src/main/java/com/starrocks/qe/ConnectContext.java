@@ -1604,6 +1604,11 @@ public class ConnectContext {
         return mysqlProxy.createResultSet(1,columnName,data);
     }
 
+    public List<ByteBuffer> resultSend2(String[] columnNames, List<String[]> data) throws IOException {
+        System.out.println("resultSend2");
+        return mysqlProxy.createResultSet2(1,columnNames,data);
+    }
+
     public ByteBuffer proxy(ByteBuffer byteBuffer, MysqlCommand command, Class stmtClass) {
         System.out.println("proxyLogin user:"+getQualifiedUser() + " isLogin:" + mysqlProxy.getIsLogin());
         ByteBuffer result = null;

@@ -8,7 +8,9 @@ import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.Configuration;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
+import io.kubernetes.client.openapi.models.V1DeleteOptions;
 import io.kubernetes.client.util.ClientBuilder;
+import io.kubernetes.client.util.Config;
 import io.kubernetes.client.util.KubeConfig;
 
 import java.io.FileReader;
@@ -20,25 +22,26 @@ public class DatalakeSystemExecutor implements DatalakeExecutor {
     ConnectContext ctx;
     DatalakeSystemParser datalakeSystemParser;
     CustomObjectsApi api;
+    String group = "starrocks.com";          // CRD group
+    String version = "v1";                   // CRD version
+    String plural = "starrocksclusters";     // plural name
     String namespace = "test";
-    List<String> starrockscluster;
+
     public DatalakeSystemExecutor(ConnectContext ctx) {
         this.ctx = ctx;
         this.datalakeSystemParser = new DatalakeSystemParser();
         // 1. Kubeconfig 파일에서 Kubernetes 클라이언트 설정 로드
-        String kubeConfigPath = System.getProperty("user.home") + "/.kube/config";
         ApiClient client = null;
         try {
-            client = ClientBuilder.kubeconfig(KubeConfig.loadKubeConfig(new FileReader(kubeConfigPath))).build();
-            Configuration.setDefaultApiClient(client);
+            client = Config.defaultClient();
+            io.kubernetes.client.openapi.Configuration.setDefaultApiClient(client);
 
             // 2. CustomObjectsApi 인스턴스 생성
-            this.api = new CustomObjectsApi();
+            this.api = new CustomObjectsApi(client);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
 
-        this.starrockscluster = new ArrayList<String>();
     }
     @Override
     public void execute(MysqlCommand command, String query, ByteBuffer packetBuf) throws IOException {
@@ -49,7 +52,10 @@ public class DatalakeSystemExecutor implements DatalakeExecutor {
                 createStarrocks(node);
             } else if (node instanceof SelectStatement) {
                 selectStarrocks(node);
+            } else if (node instanceof DropStarrocksStatement) {
+                dropStarrocks(node);
             }
+
 
         }
         System.out.println("System parseStmt:"+((ProgramStatement)parseStmt).getList().get(0));
@@ -60,14 +66,89 @@ public class DatalakeSystemExecutor implements DatalakeExecutor {
 
         System.out.println("selectStarrocks:" + css.getTable());
 
-        List<ByteBuffer> packets = ctx.resultSend(css.getTable(), starrockscluster);
 
-        for (ByteBuffer packet : packets) {
-            System.out.println(Arrays.toString(packet.array()));
-            packet.rewind();
-            ctx.getMysqlChannel().realNetSend(packet);
-            System.out.println();
+        // 리스트 요청
+        Object crList = null;
+        try {
+            crList = api.listNamespacedCustomObject(
+                    group,
+                    version,
+                    namespace,
+                    plural,
+                    null,  // pretty
+                    null,  // _continue
+                    null,  // fieldSelector
+                    null,  // labelSelector
+                    null,  // limit
+                    null,  // resourceVersion
+                    null,  // timeoutSeconds
+                    null,
+                    null,
+                    null// watch
+            );
+
+            //test
+            //List<String> starrockscluster = new ArrayList<String>();
+
+            List<String[]> starrockscluster = new ArrayList<String[]>();
+
+            // 결과 출력 (Object는 Map<String, Object> 형태로 deserialize됨)
+            System.out.println(crList);
+            Map<String, Object> crMap = (Map<String, Object>) crList;
+            List<Object> items = (List<Object>) crMap.get("items");
+
+            for (Object item : items) {
+                Map<String, Object> itemMap = (Map<String, Object>) item;
+                Map<String, Object> metadata = (Map<String, Object>) itemMap.get("metadata");
+                Map<String, Object> status = (Map<String, Object>) itemMap.get("status");
+                String name = (String) metadata.get("name");
+                String festatus = "Status not available yet";
+                String bestatus = "Status not available yet";
+                String cnstatus = "Status not available yet";
+
+                if (status != null) {
+                    Map<String, Object> starRocksFeStatus = (Map<String, Object>) status.get("starRocksFeStatus");
+                    Map<String, Object> starRocksBeStatus = (Map<String, Object>) status.get("starRocksBeStatus");
+                    Map<String, Object> starRocksCnStatus = (Map<String, Object>) status.get("starRocksCnStatus");
+
+                    if (starRocksFeStatus!=null) {
+                        festatus = (String) starRocksFeStatus.get("phase");
+                    }
+                    if (starRocksBeStatus!=null) {
+                        bestatus = (String) starRocksBeStatus.get("phase");
+                    }
+                    if (starRocksCnStatus!=null) {
+                        cnstatus = (String) starRocksCnStatus.get("phase");
+                    }
+
+
+                }
+                System.out.println("Name: " + metadata.get("name"));
+                //test
+                //starrockscluster.add((String) metadata.get("name"));
+
+                starrockscluster.add(new String[]{name, festatus, bestatus, cnstatus});
+            }
+
+            //test
+            //List<ByteBuffer> packets = ctx.resultSend(css.getTable(), starrockscluster);
+
+            String[] columns = {"name", "festatus" ,"bestatus", "cnstatus"};
+
+            List<ByteBuffer> packets = ctx.resultSend2(columns, starrockscluster);
+
+            for (ByteBuffer packet : packets) {
+                System.out.println(Arrays.toString(packet.array()));
+                packet.rewind();
+                ctx.getMysqlChannel().realNetSend(packet);
+                System.out.println();
+            }
+
+        } catch (ApiException e) {
+            throw new RuntimeException(e);
         }
+
+
         return 0;
     }
 
@@ -105,7 +186,7 @@ public class DatalakeSystemExecutor implements DatalakeExecutor {
         beResources.put("requests", beRequests);
         beSpec.put("resources", beResources);
 
-        beSpec.put("replicas", 3);
+        beSpec.put("replicas", 1);
 
         Map<String, String> beService = new HashMap<>();
         beService.put("type", "ClusterIP");
@@ -130,7 +211,7 @@ public class DatalakeSystemExecutor implements DatalakeExecutor {
         feResources.put("requests", feRequests);
         feSpec.put("resources", feResources);
 
-        feSpec.put("replicas", 3);
+        feSpec.put("replicas", 1);
 
         Map<String, String> feService = new HashMap<>();
         feService.put("type", "ClusterIP");
@@ -165,7 +246,6 @@ public class DatalakeSystemExecutor implements DatalakeExecutor {
             );
             System.out.println("StarRocksCluster 'kube-starrocks' 생성 요청 완료.");
             System.out.println("결과: " + result);
-            starrockscluster.add(css.getName());
             ctx.getMysqlChannel().realNetSend(ctx.ok());
         } catch (ApiException e) {
             System.err.println("API 예외 발생: " + e.getMessage());
@@ -174,6 +254,46 @@ public class DatalakeSystemExecutor implements DatalakeExecutor {
             ctx.getMysqlChannel().realNetSend(ctx.error(1045, "28000", e.getResponseBody()));
         }
 
+        return 0;
+    }
+
+
+    private int dropStarrocks(SystemNode node) throws IOException {
+        DropStarrocksStatement css = (DropStarrocksStatement) node;
+
+        System.out.println("dropStarrocks:" + css.getName());
+
+
+        String name = css.getName();                      // 삭제할 CR 이름
+
+        // DeleteOptions 설정 (optional)
+        V1DeleteOptions deleteOptions = new V1DeleteOptions();
+
+        // 삭제 호출
+        try {
+            Object result = api.deleteNamespacedCustomObject(
+                    group,
+                    version,
+                    namespace,
+                    plural,
+                    name,
+                    null,   // pretty
+                    null,   // dryRun
+                    String.valueOf(0),      // gracePeriodSeconds
+                    null,   // orphanDependents
+                    deleteOptions
+            );
+
+            System.out.println("StarRocksCluster '"+name+"' 삭제 완료.");
+            System.out.println("결과: " + result);
+            ctx.getMysqlChannel().realNetSend(ctx.ok());
+
+        } catch (ApiException e) {
+                System.err.println("API 예외 발생: " + e.getMessage());
+                System.err.println("HTTP 상태 코드: " + e.getCode());
+                System.err.println("응답 바디: " + e.getResponseBody()); // 이 부분을 추가하세요
+                ctx.getMysqlChannel().realNetSend(ctx.error(1045, "28000", e.getResponseBody()));
+        }
         return 0;
     }
 }

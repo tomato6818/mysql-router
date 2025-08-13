@@ -80,6 +80,11 @@ class DatalakeSystemVisitor extends SystemBaseVisitor<SystemNode> {
         return result;
     }
 
+    @Override
+    public SystemNode visitDrop_starrocks_statement(SystemParser.Drop_starrocks_statementContext ctx) {
+        DropStarrocksStatement result = new DropStarrocksStatement(ctx.ID().getText());
+        return result;
+    }
 
     // 최상위 노드에서 모든 결과를 모아서 하나의 문자열로 반환합니다.
     @Override
