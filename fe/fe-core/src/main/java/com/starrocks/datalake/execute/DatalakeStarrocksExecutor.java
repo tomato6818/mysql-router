@@ -30,7 +30,8 @@ public class DatalakeStarrocksExecutor implements DatalakeExecutor {
             }
         }
 
-        System.out.println("starrocks command:"+command+" parsedStmtClass:" + parsedStmtClass);
-        ctx.getMysqlChannel().realNetSend(ctx.proxy(packetBuf, command, parsedStmtClass));
+        System.out.println("command:"+command+" parsedStmtClass:" + parsedStmtClass);
+        //ctx.getMysqlChannel().realNetSend(ctx.proxy(packetBuf, command, parsedStmtClass));
+        ctx.proxy(packetBuf, command, parsedStmtClass, ctx.getMysqlChannel());
     }
 }

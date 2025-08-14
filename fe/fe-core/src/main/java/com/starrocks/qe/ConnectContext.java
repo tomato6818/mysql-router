@@ -1608,6 +1608,17 @@ public class ConnectContext {
         System.out.println("resultSend2");
         return mysqlProxy.createResultSet2(1,columnNames,data);
     }
+    public void proxy(ByteBuffer byteBuffer, MysqlCommand command, Class stmtClass, MysqlChannel channel) {
+        System.out.println("proxyLogin user:"+getQualifiedUser() + " isLogin:" + mysqlProxy.getIsLogin());
+        try {
+            if (!mysqlProxy.getIsLogin()) {
+                mysqlProxy.login();
+            }
+            mysqlProxy.streamQuery(byteBuffer, command, stmtClass, channel);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     public ByteBuffer proxy(ByteBuffer byteBuffer, MysqlCommand command, Class stmtClass) {
         System.out.println("proxyLogin user:"+getQualifiedUser() + " isLogin:" + mysqlProxy.getIsLogin());

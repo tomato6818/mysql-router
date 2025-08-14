@@ -20,8 +20,8 @@ public class MysqlProxy {
     int sequenceId;
     int sendSequenceId;
     Socket socket;
-    String host = "127.0.0.1";
-    int port = 9031;
+    String host = "10.233.64.178";
+    int port = 9030;
 
     String username = "root";
     String password = "1234";
@@ -30,6 +30,177 @@ public class MysqlProxy {
         this.isLogin = false;
         this.mysqlSerializer = MysqlSerializer.newInstance();
     }
+
+    public int query(String query) {
+        System.out.println("MysqlProxy Start query:" + query);
+        byte command = 0x03; // COM_QUERY
+        byte[] queryBytes = query.getBytes(StandardCharsets.UTF_8);
+        int packetSize = 1 + queryBytes.length; // 1 byte for command + query
+
+        ByteBuffer buffer = ByteBuffer.allocate(packetSize);
+        buffer.put(command);
+        buffer.put(queryBytes);
+        buffer.flip(); // ready for reading
+        buffer.rewind();
+
+        send(buffer, MysqlCommand.COM_QUERY, null);
+        System.out.println("MysqlProxy Fininsh query:" + query);
+        return 0;
+    }
+    // ===================== 메인 전송 함수 =====================
+    public void streamQuery(ByteBuffer byteBuffer, MysqlCommand command, Class stmtClass, MysqlChannel channel) {
+        List<byte[]> responsePackets = new ArrayList<>();
+
+        int length = byteBuffer.limit();
+        System.out.println("MysqlProxy Send byteBuffer length:" + length);
+        if(socket == null || !socket.isConnected()) {
+            System.out.println("MysqlProxy Send socket null");
+            return;
+        }
+
+        int ii=0;
+        while (byteBuffer.hasRemaining()) {
+            System.out.print((char) byteBuffer.get()); // 출력: abc
+            ii++;
+        }
+        System.out.println("");
+        System.out.println("ii:"+ii);
+
+        byteBuffer.rewind();
+        try {
+
+            InputStream in = socket.getInputStream();
+            OutputStream out = socket.getOutputStream();
+
+            System.out.println("MysqlProxy Send Sending");
+            //writeHeader(length, out);
+            //writeBuffer(byteBuffer, out);
+            sendSequenceId = 0;
+            sendPacket(byteBuffer, out);
+            //accSequenceId();
+            //out.flush();
+            System.out.println("MysqlProxy Send Sended");
+
+            // 5. Read Column Count
+            byte[] columnCountPacket = readPacket(in,responsePackets);
+
+            int firstByte = columnCountPacket[0] & 0xFF;
+            if (firstByte == 0xFF) {
+                handleErrorPacket(columnCountPacket);
+                mergePacketsToByteBuffer(responsePackets, channel); // 또는 적절한 에러 처리
+                return;
+            }
+
+            if (stmtClass == InsertStmt.class
+                    || stmtClass == UpdateStmt.class
+                    || stmtClass == DeleteStmt.class
+                    || stmtClass == CreateDbStmt.class
+                    || stmtClass == CreateTableStmt.class) {
+                channel.realNetSend(createOkPacket(
+                        1,       // sequenceId
+                        1L,      // affectedRows
+                        0L,      // lastInsertId
+                        2,       // serverStatus (autocommit)
+                        0        // warningCount
+                ));
+                return;
+            }
+
+            if (command == MysqlCommand.COM_INIT_DB) {
+                channel.realNetSend(createOkPacket(
+                        1,       // sequenceId
+                        1L,      // affectedRows
+                        0L,      // lastInsertId
+                        2,       // serverStatus (autocommit)
+                        0        // warningCount
+                ));
+                return;
+            }
+
+            if (command == MysqlCommand.COM_FIELD_LIST) {
+                while (true) {
+                    byte[] row = readPacket(in, responsePackets);
+                    if ((row[0] & 0xFF) == 0xFE && row.length < 9) {
+                        System.out.println("EOF reached.");
+                        break;
+                    }
+                }
+
+                mergePacketsToByteBuffer(responsePackets, channel);
+                return;
+            }
+
+            int columnCount = firstByte;
+            System.out.println("Column count: " + columnCount);
+
+            System.out.println("6. Read Column Definition packets");
+            // 6. Read Column Definition packets
+            for (int i = 0; i < columnCount; i++) {
+                byte[] colDef = readPacket(in,responsePackets);
+                // Column info is optional here for demo
+            }
+
+            // 7. EOF packet
+            System.out.println("7. EOF packet");
+            List.of(readPacket(in, responsePackets));
+
+            //Test
+            mergePacketsToByteBuffer(responsePackets, channel);
+            responsePackets.removeAll(responsePackets);
+            System.out.println("responsePackets.size() 1:"+responsePackets.size());
+            System.out.println("8. Read Row Data packets until EOF");
+            // 8. Read Row Data packets until EOF
+            while (true) {
+                byte[] row = readPacket(in, responsePackets);
+                //Test
+                mergePacketsToByteBuffer(responsePackets, channel);
+                responsePackets.removeAll(responsePackets);
+                System.out.println("responsePackets.size() 2:"+responsePackets.size());
+                if ((row[0] & 0xFF) == 0xFE && row.length < 9) {
+                    System.out.println("EOF reached.");
+                    break;
+                }
+                parseRow(row);
+            }
+
+
+        } catch (IOException e) {
+            // 연결 종료 or 에러
+            e.printStackTrace();
+        }
+        byteBuffer.rewind();
+        mergePacketsToByteBuffer(responsePackets, channel);
+    }
+
+    public static ByteBuffer mergePacketsToByteBuffer(List<byte[]> responsePackets, MysqlChannel channel) {
+        // 총 크기 계산
+        int totalLength = 0;
+        for (byte[] packet : responsePackets) {
+            totalLength += packet.length;
+        }
+
+        // ByteBuffer 생성
+        ByteBuffer buffer = ByteBuffer.allocate(totalLength);
+
+        // 데이터 복사
+        for (byte[] packet : responsePackets) {
+            buffer.put(packet);
+        }
+
+        // 읽기 준비를 위해 flip
+        buffer.flip();
+        System.out.println("mergePacketsToByteBuffer:"+Arrays.toString(buffer.array()));
+        buffer.rewind();
+        try {
+            channel.realNetSend(buffer);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return buffer;
+    }
+
+    // ===================== 유틸 함수 =====================
+
 
     public ByteBuffer send(ByteBuffer byteBuffer, MysqlCommand command, Class stmtClass) {
         List<byte[]> responsePackets = new ArrayList<>();
@@ -146,22 +317,7 @@ public class MysqlProxy {
 
 
 
-    public int query(String query) {
-        System.out.println("MysqlProxy Start query:" + query);
-        byte command = 0x03; // COM_QUERY
-        byte[] queryBytes = query.getBytes(StandardCharsets.UTF_8);
-        int packetSize = 1 + queryBytes.length; // 1 byte for command + query
 
-        ByteBuffer buffer = ByteBuffer.allocate(packetSize);
-        buffer.put(command);
-        buffer.put(queryBytes);
-        buffer.flip(); // ready for reading
-        buffer.rewind();
-
-        send(buffer, MysqlCommand.COM_QUERY, null);
-        System.out.println("MysqlProxy Fininsh query:" + query);
-        return 0;
-    }
 
     public static ByteBuffer mergePacketsToByteBuffer(List<byte[]> responsePackets) {
         // 총 크기 계산
